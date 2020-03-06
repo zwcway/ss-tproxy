@@ -4,6 +4,7 @@
 
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 
+readonly bin=${0##*/}
 base_dir="/opt/etc/ssr"
 ss_tproxy_config="$base_dir/ss-tproxy.conf"
 
@@ -631,10 +632,10 @@ update_gfwlist() {
     if [ -z "$gfwlist_file" ]; then
         command_is_exists 'curl'   || log_fault "command not found: curl"
         local url='https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt'
-        \curl -4sSkL "$url" | $base64_decode | filter_gfwlist >"$file_gfwlist_txt" || \
+        \curl -4sSkL "$url" | $base64_decode 2>/dev/null | filter_gfwlist >"$file_gfwlist_txt" || \
             log_fault "download failed, exit-code: $?"
     else
-        \cat "$gfwlist_file" | $base64_decode| filter_gfwlist >"$file_gfwlist_txt"
+        \cat "$gfwlist_file" | $base64_decode 2>/dev/null| filter_gfwlist >"$file_gfwlist_txt"
     fi
 
     \echo "write to $file_gfwlist_txt" $(color_green "successful")
@@ -852,8 +853,9 @@ stop_server() {
 }
 
 flush_dnscache() {
+    local SIGNAL=${1:-SIGHUP}
     ! ss_tproxy_is_started && return
-    kill -HUP "$status_dnsmasq_pid"
+    kill -$SIGNAL "$status_dnsmasq_pid"
 }
 
 modify_resolvconf() {
@@ -1406,7 +1408,7 @@ parse_ss() {
 parse_vmess() {
     chk_base64
     # base64 decode
-    local proxy_vmess_config=$(\sed -e '{s/vmess:\/\///g;s/-/+/g;s/_/\//g;}' <<<"$proxy_uri" | $base64_decode | \jq -c  . 2>/dev/null)
+    local proxy_vmess_config=$(\sed -e '{s/vmess:\/\///g;s/-/+/g;s/_/\//g;}' <<<"$proxy_uri" | $base64_decode 2>/dev/null | \jq -c  .)
     [ -n "$proxy_vmess_config" ] || log_fault "invalid vmess URI, unable to resolve!"
 
     local proxy_vmess_add=$(\echo "$proxy_vmess_config"  | \jq -cr .add)
@@ -1613,6 +1615,46 @@ stop() {
     [ "$(type -t post_stop)" = 'function' ] && post_stop
 }
 
+reload_dnsmasq() {
+    flush_dnscache SIGHUB && \
+    \echo -n "reload dnsmasq: " && \
+    \echo $(color_green "success") || \
+    \echo $(color_red "failed")
+}
+
+reload_proxy() {
+    stop_proxy
+    {
+    start_proxy && \
+    update_pidfile;
+    } && \
+    {
+        \echo -n "reload "
+        is_ss       && \echo -n " ss ";
+        is_ssr      && \echo -n " ssr ";
+        is_v2ray    && \echo -n " v2ray ";
+        \echo -n ':';
+    } && \
+    \echo $(color_green "success") || \
+    \echo $(color_red "failed")
+}
+
+reload() {
+    local srv=$1
+    case "$srv" in
+        d|dns|dnsmasq)  reload_dnsmasq;;
+        p|proxy)        reload_proxy;;
+        help)           \echo "Usage: $bin reload" $(color_white "SERVICE");exit;;
+        '')             reload_dnsmasq; reload_proxy;;
+        *)
+        \echo $(color_yellow "unknown service:") $(color_red "$srv");\
+        \echo $(color_white "try \"$bin reload help\"");
+        exit 1
+        ;;
+    esac
+    exit
+}
+
 status() {
     local max=15
 
@@ -1753,11 +1795,12 @@ main() {
     case "${arguments[0]}" in
         start)                          start; status;;
         stop)                           stop; status;;
-        r|restart)                      stop; status; \echo; start; status;;
+        restart)                        stop; status; \echo; start; status;;
         status)                         status;;
-        show|show-ipts)                 show_iptables;;
+        s|show|show-ipts)               show_iptables;;
         flush-postrule)                 flush_postrule;;
-        flush-dnscache)                 flush_dnscache;;
+        flush-dnscache)                 flush_dnscache HUP;;
+        r|reload)                       reload "${arguments[1]}";;
         delete|delete-gfwlist)          delete_gfwlist;;
         update-chnlist)                 update_chnlist "${arguments[@]:1}";;
         update-gfwlist)                 update_gfwlist "${arguments[@]:1}";;
