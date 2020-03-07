@@ -4,7 +4,7 @@
 
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 
-readonly bin=${0##*/}
+readonly bin="${0##*/}"
 base_dir="/opt/etc/ssr"
 ss_tproxy_config="$base_dir/ss-tproxy.conf"
 
@@ -43,9 +43,12 @@ readonly IPV6_RESERVED_IPADDRS=(
     ff00::/8
 )
 
-readonly IPV4_PATTERN='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
-readonly IPV6_PATTERN='^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$'
-readonly DOMAIN_PATTERN='^[-_a-z0-9]+\.[-_a-z0-9]+$'
+readonly IPV4_PATTERN='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+'
+readonly IPV6_PATTERN='^((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?$'
+readonly DOMAIN_PATTERN='^([-_a-z0-9]+\.){1,}[-_a-z0-9]+'
+
+readonly IPV4_NET_PATTERN=$IPV4_PATTERN'(/[0-9]+|/'$IPV4_PATTERN')?$'
+readonly IPV6_NET_PATTERN=$IPV6_PATTERN'(/[0-9]+)?$'
 
 font_bold()     { \printf "\e[1m$*\e[0m";    }
 color_red()     { \printf "\e[31m$*\e[0m";   }
@@ -125,14 +128,16 @@ is_need_iproute()   { is_true "$tproxy" || is_enabled_udp; }
 
 is_empty_iptschain()    { iptables $1 -t $2 -S $3 | \grep -qE '^-A'; }
 
-is_ipv4_address()   { \grep -qE "$IPV4_PATTERN" <<<"$1";    }
-is_ipv6_address()   { \grep -qE "$IPV6_PATTERN" <<<"$1";    }
-is_domain_name()    { \grep -qE "$DOMAIN_PATTERN" <<<"$1";  }
+is_ipv4_address()   { \grep -qE "${IPV4_PATTERN}$" <<<"$1";    }
+is_ipv6_address()   { \grep -qE "${IPV6_PATTERN}$" <<<"$1";    }
+is_domain_name()    { \grep -qE "${DOMAIN_PATTERN}$" <<<"$1";  }
 
 is_port_using()     { $netstat -an | \grep -F LISTEN | \grep -qF ":$1" &>/dev/null; }
 
 is_variable_array()     { \declare -p $1 2>/dev/null | \grep -qE -- '^declare -a'; }
 is_variable_defined()   { \declare -p $1 &>/dev/null;                            }
+
+is_setname_exists() { ! \ipset test $1 1 2>&1 | \grep -qF 'not exist'; }
 
 set_sysctl_option() {
     local option_name="$1" option_value="$2"
@@ -240,18 +245,6 @@ ipset_family() {
     [ "$1" = '-4' ] && \echo inet || \echo inet6
 }
 
-setname_chnroute() {
-    [ "$1" = '-4' ] && \echo $ipset_chnroute_name || \echo ${ipset_privaddr_name}6
-}
-
-setname_gfwlist() {
-    is_ipv4_ipts $1 && \echo $ipset_gfwlist_name || \echo ${ipset_gfwlist_name}6
-}
-
-setname_privaddr() {
-    is_ipv4_ipts $1 && \echo $ipset_privaddr_name || \echo ${ipset_privaddr_name}6
-}
-
 load_pidfile() {
     \source "$file_dnsserver_pid" || log_fault "load pidfile failed, exit-code: $?"
 }
@@ -337,9 +330,9 @@ load_config() {
     proxy_stopcmd=${proxy_stopcmd:-}
 
     is_variable_defined proxy_svraddr4 || proxy_svraddr4=()
-    is_variable_array proxy_svraddr4 || proxy_svraddr4=($proxy_svraddr4)
+    is_variable_array proxy_svraddr4 || proxy_svraddr4=("$proxy_svraddr4")
     is_variable_defined proxy_svraddr6 || proxy_svraddr6=()
-    is_variable_array proxy_svraddr6 || proxy_svraddr6=($proxy_svraddr6)
+    is_variable_array proxy_svraddr6 || proxy_svraddr6=("$proxy_svraddr6")
 
     file_dnsserver_pid="${file_dnsserver_pid:-$base_dir/.dnsserver.pid}"
     dnsmasq_bind_port=${dnsmasq_bind_port:-53}
@@ -352,11 +345,11 @@ load_config() {
     dnsmasq_gfwlist_file="${dnsmasq_gfwlist_file:-$dnsmasq_conf_dir/dnsmasq.gfwlist.conf}"
     dnsmasq_ignore_file="${dnsmasq_ignore_file:-$dnsmasq_conf_dir/dnsmasq.ignore.conf}"
     is_variable_defined dnsmasq_conf_dir || dnsmasq_conf_dir=()
-    is_variable_array dnsmasq_conf_dir || dnsmasq_conf_dir=($dnsmasq_conf_dir)
+    is_variable_array dnsmasq_conf_dir || dnsmasq_conf_dir=("$dnsmasq_conf_dir")
     is_variable_defined dnsmasq_conf_file || dnsmasq_conf_file=()
-    is_variable_array dnsmasq_conf_file || dnsmasq_conf_file=($dnsmasq_conf_file)
+    is_variable_array dnsmasq_conf_file || dnsmasq_conf_file=("$dnsmasq_conf_file")
     is_variable_defined dnsmasq_conf_string || dnsmasq_conf_string=()
-    is_variable_array dnsmasq_conf_string || dnsmasq_conf_string=($dnsmasq_conf_string)
+    is_variable_array dnsmasq_conf_string || dnsmasq_conf_string=("$dnsmasq_conf_string")
 
 
     chinadns_bind_port=${chinadns_bind_port:-65353}
@@ -368,9 +361,9 @@ load_config() {
     chinadns_verbose=${chinadns_verbose:-false}
     chinadns_logfile="${chinadns_logfile:-$base_dir/chinadns.log}"
     is_variable_defined chinadns_privaddr4 || chinadns_privaddr4=()
-    is_variable_array chinadns_privaddr4 || chinadns_privaddr4=($chinadns_privaddr4)
+    is_variable_array chinadns_privaddr4 || chinadns_privaddr4=("$chinadns_privaddr4")
     is_variable_defined chinadns_privaddr6 || chinadns_privaddr6=()
-    is_variable_array chinadns_privaddr6 || chinadns_privaddr6=($chinadns_privaddr6)
+    is_variable_array chinadns_privaddr6 || chinadns_privaddr6=("$chinadns_privaddr6")
 
     dns2tcp_bind_port=${dns2tcp_bind_port:-65454}
     dns2tcp_verbose=${dns2tcp_verbose:-false}
@@ -391,9 +384,9 @@ load_config() {
     opts_ip_for_check_net=${opts_ip_for_check_net:-}
 
     ipset_privaddr_name=${ipset_privaddr_name:-privaddr}
-    ipset_gfwlist_name=${ipset_privaddr_name:-gfwlist}
-    ipset_chnroute_name=${ipset_privaddr_name:-chnroute}
-    ipset_timeout=${ipset_timeout:-604800‬}
+    ipset_gfwlist_name=${ipset_gfwlist_name:-gfwlist}
+    ipset_chnroute_name=${ipset_chnroute_name:-chnroute}
+    ipset_timeout=${ipset_timeout:-0‬}
 
     file_gfwlist_txt="${file_gfwlist_txt:-$base_dir/gfwlist.txt}"
     file_gfwlist_ext="${file_gfwlist_ext:-$base_dir/gfwlist.ext}"
@@ -473,6 +466,8 @@ check_iptable_env() {
     for mod in ${require_mods[@]}; do
         chk_kernel_mod ${mod}  || log_fault "kernel module not found. try 'modprobe xt_${mod}.ko'";
     done
+
+    start_ipset
 }
 
 check_proxy_env() {
@@ -485,8 +480,8 @@ check_proxy_env() {
         [ -x "$bin_v2ray" ] || log_fault "bin not found: $bin_v2ray"
     elif is_ss || is_ssr; then
         [ -z "$bin_ssr" ] && {
-            command_is_exists "ss-local" && bin_ssr="ss-local"
-            command_is_exists "ss-redir" && bin_ssr="ss-redir"
+            command_is_exists "ss-local" && bin_ssr="$(\which ss-local)"
+            command_is_exists "ss-redir" && bin_ssr="$(\which ss-redir)"
         }
         [ -z "$bin_ssr" ] && log_fault "bin_ssr not configure";
         [ -x "$bin_ssr" ] || log_fault "bin not found: $bin_ssr";
@@ -495,13 +490,15 @@ check_proxy_env() {
 }
 
 check_dnsmasq_env() {
-    [ -z "$bin_dnsmasq" ] && command_is_exists "dnsmasq" && bin_v2ray="$(\which dnsmasq)"
+    [ -z "$bin_dnsmasq" ] && command_is_exists "dnsmasq" && bin_dnsmasq="$(\which dnsmasq)"
     [ -z "$bin_dnsmasq" ] && log_fault "bin_dnsmasq not configure"
     [ -x "$bin_dnsmasq" ] || log_fault "bin not found: $bin_dnsmasq"
 }
 
 check_env() {
-    for cmd in ls grep sed awk kill mv rm cat cut touch sort uniq ipset dnsmasq lsmod; do
+    \command -v 'which' &>/dev/null || log_fault "command not found: which"
+
+    for cmd in ls grep sed awk kill mv rm cat cut touch sort uniq ipset lsmod; do
         command_is_exists $cmd   || log_fault "command not found: $cmd"
     done
 
@@ -615,6 +612,18 @@ check_config() {
     [ "${#proxy_svraddr4[@]}" -eq 0 -a "${#proxy_svraddr6[@]}" -eq 0 ] && log_fault "both proxy_svraddr4 and proxy_svraddr6 are empty"
 }
 
+setname_chnroute() {
+    is_ipv4_ipts $1 && \echo $ipset_chnroute_name || \echo ${ipset_privaddr_name}6
+}
+
+setname_gfwlist() {
+    is_ipv4_ipts $1 && \echo $ipset_gfwlist_name || \echo ${ipset_gfwlist_name}6
+}
+
+setname_privaddr() {
+    is_ipv4_ipts $1 && \echo $ipset_privaddr_name || \echo ${ipset_privaddr_name}6
+}
+
 resolve_svraddr() {
     if is_true "$ipv4"; then
         proxy_svripv4=()
@@ -686,7 +695,7 @@ do_update_gfwlist() {
     fi
 
     \echo "write to $file_gfwlist_txt" $(color_green "successful")
-    \echo $(color_yellow "you can restart proxy now")
+    \echo $(color_yellow "you can restart dnsmasq now")
 }
 
 filter_gfwlist() {
@@ -709,13 +718,13 @@ do_update_chnroute() {
     fi
     {
         \echo "create chnroute hash:net family inet"
-        \echo "$data" | \grep CN | \grep ipv4 | \awk -F'|' '{printf("add chnroute %s/%d\n", $4, 32-log($5)/log(2))}'
+        \echo "$data" | \grep CN | \grep ipv4 | \awk -F'|' '{printf("%s/%d\n", $4, 32-log($5)/log(2))}'
     } >"$file_chnroute_set"
     {
         \echo "create chnroute6 hash:net family inet6"
-        \echo "$data" | \grep CN | \grep ipv6 | \awk -F'|' '{printf("add chnroute6 %s/%d\n", $4, $5)}'
+        \echo "$data" | \grep CN | \grep ipv6 | \awk -F'|' '{printf("%s/%d\n", $4, $5)}'
     } >"$file_chnroute6_set"
-    \echo $(color_yellow "you can restart proxy now")
+    \echo $(color_yellow "you can restart dnsmasq now")
 }
 
 _convert_dnsmasq_domain() {
@@ -723,17 +732,16 @@ _convert_dnsmasq_domain() {
 
     local ipset_name=($({ is_true "$ipv4" && \echo $ipset_prename; }) $({ is_true "$ipv6" && \echo ${ipset_prename}6; }))
     local awk_script="$(
-        is_true "$ipv4" && \echo "print 'server = /'\$1'/$dns_server';"
-        is_true "$ipv6" && \echo "print 'server = /'\$1'/$dns_server6';"
-        \echo "print 'ipset = /'\$1'/"$(\echo ${ipset_name[@]} | \sed 's/ /,/')
+        is_true "$ipv4" && \echo "print \"server = /\"\$1\"/$dns_server\";"
+        is_true "$ipv6" && \echo "print \"server = /\"\$1\"/$dns_server6\";"
+        \echo "print \"ipset = /\"\$1\"/$(\echo ${ipset_name[@]} | \sed 's/ /,/')\";"
     )"
-    \grep -qE "$DOMAIN_PATTERN" "$from_file" | \
-        \awk "{${awk_script}}" >"$to_file"
+    \grep -ioE "$DOMAIN_PATTERN" "$from_file" | \awk "{${awk_script}}" >"$to_file"
 
     if is_true "$ipv4"; then
-        \grep -qE "$IPV4_PATTERN" "$from_file" | \awk '{print "add '$ipset_prename' "$1}'  | \ipset -exist
+        \grep -oE "$IPV4_NET_PATTERN" "$from_file" | \awk '{print "add '$ipset_prename' "$1}'  | \ipset -R -exist
     elif is_true "$ipv6"; then
-        \grep -qE "$IPV6_PATTERN" "$from_file" | \awk '{print "add '$ipset_prename'6 "$1}' | \ipset -exist
+        \grep -ioE "$IPV6_NET_PATTERN" "$from_file" | \awk '{print "add '$ipset_prename'6 "$1}' | \ipset -R -exist
     fi
 }
 
@@ -780,10 +788,10 @@ start_dnsserver_chnroute() {
         chinadns_args+=" -t $dns_remote6"
     fi
 
-    is_true "$ipv4" && \grep -vE '^[0-9]' "$file_chnroute_set" | awk '{print "add chnroute "$1}'   | \ipset -exist
-    is_true "$ipv6" && \grep -vE '^[0-9]' "$file_chnroute6_set" | awk '{print "add chnroute6 "$1}' | \ipset -exist
-    is_true "$ipv4" && for addr in "${chinadns_privaddr4[@]}"; do \echo "add chnroute $addr";  done | \ipset -exist
-    is_true "$ipv6" && for addr in "${chinadns_privaddr6[@]}"; do \echo "add chnroute6 $addr"; done | \ipset -exist
+    is_true "$ipv4" && \grep -vE '^[0-9]' "$file_chnroute_set" | awk '{print "add chnroute "$1}'   | \ipset -R -exist
+    is_true "$ipv6" && \grep -vE '^[0-9]' "$file_chnroute6_set" | awk '{print "add chnroute6 "$1}' | \ipset -R -exist
+    is_true "$ipv4" && for addr in "${chinadns_privaddr4[@]}"; do \echo "add chnroute $addr";  done | \ipset -R -exist
+    is_true "$ipv6" && for addr in "${chinadns_privaddr6[@]}"; do \echo "add chnroute6 $addr"; done | \ipset -R -exist
 
     if is_true "$chinadns_gfwlist_mode"; then
         local gfwlist_domain_string=$(\cat $file_gfwlist_txt; \grep -E '^@' $file_gfwlist_ext | \cut -c2-)
@@ -943,6 +951,8 @@ disable_icmpredir() {
 }
 
 delete_ipset_gfwlist() {
+    flush_ipset_gfwlist
+
     \ipset -X gfwlist  &>/dev/null
     \ipset -X gfwlist6 &>/dev/null
 }
@@ -953,6 +963,8 @@ flush_ipset_gfwlist() {
 }
 
 delete_ipset_chnroute() {
+    flush_ipset_chnroute
+
     \ipset -X privaddr  &>/dev/null
     \ipset -X privaddr6 &>/dev/null
     \ipset -X chnroute  &>/dev/null
@@ -1331,26 +1343,49 @@ start_iptables() {
     is_true "$ipv6" && start_iptables_post_rules -6
 }
 
-create_ipset() {
+create_ipset_chnroute() {
+    local ipset_setfamily=$(ipset_family $1)
+    local chnroute_setname=$(setname_chnroute $1)
+    is_setname_exists "$chnroute_setname" || \
+    \ipset -N -exist "$chnroute_setname" hash:net family "$ipset_setfamily" \
+        $({ [ "$ipset_timeout" -gt '0' ] && \echo timeout "$ipset_timeout"; })
+}
+
+create_ipset_gfwlist() {
     local ipset_setfamily=$(ipset_family $1)
     local gfwlist_setname=$(setname_gfwlist $1)
+    is_setname_exists "$gfwlist_setname" || \
+    \ipset -N -exist "$gfwlist_setname" hash:net family "$ipset_setfamily" \
+        $({ [ "$ipset_timeout" -gt '0' ] && \echo timeout "$ipset_timeout"; })
+}
+
+create_ipset_privaddr() {
+    local ipset_setfamily=$(ipset_family $1)
     local privaddr_setname=$(setname_privaddr $1)
-    local grep_pattern=$({ [ "$1" = '-4' ] && \echo "$IPV4_PATTERN" || \echo "$IPV6_PATTERN"; })
+    is_setname_exists "$privaddr_setname" || \
+    \ipset -N -exist "$privaddr_setname" hash:net family "$ipset_setfamily" \
+        $({ [ "$ipset_timeout" -gt '0' ] && \echo timeout "$ipset_timeout"; })
+}
+
+create_ipset() {
+    local grep_pattern=$({ is_ipv4_ipts $1 && \echo "$IPV4_NET_PATTERN" || \echo "$IPV6_NET_PATTERN"; })
+    local privaddr_setname=$(setname_privaddr $1)
+    local gfwlist_setname=$(setname_gfwlist $1)
 
     local privaddr_array=()
     is_ipv4_ipts $1 && privaddr_array=("${IPV4_RESERVED_IPADDRS[@]}") || privaddr_array=("${IPV6_RESERVED_IPADDRS[@]}")
 
     if is_global_mode || is_chnroute_mode; then
-        \ipset create -exist $privaddr_setname hash:net family $ipset_setfamily timeout $ipset_timeout
+        create_ipset_privaddr $1
+
         for privaddr in "${privaddr_array[@]}"; do \echo "-A $privaddr_setname $privaddr"; done | \ipset -R -exist &>/dev/null
-        \grep -E "$grep_pattern" $file_ignlist_ext | while \read ip_addr; do
-            \echo "-A $privaddr_setname $ip_addr";
-        done | ipset -R -exist &>/dev/null
+        \grep -ioE "$grep_pattern" "$file_ignlist_ext" | awk "{print \"-A ${privaddr_setname} \"$1}" | ipset -R -exist &>/dev/null
+
+        is_chnroute_mode && create_ipset_chnroute $1
+
     elif is_gfwlist_mode; then
-        \ipset create -exist $gfwlist_setname hash:net family $ipset_setfamily timeout $ipset_timeout
-        \grep -iE "$grep_pattern" $file_gfwlist_ext | while \read ip_addr; do
-            \echo "-A $gfwlist_setname $ip_addr";
-        done | \ipset -R -exist &>/dev/null
+        create_ipset_gfwlist $1
+        \grep -ioE "$grep_pattern" "$file_gfwlist_ext" | awk "{print \"-A ${gfwlist_setname} \"$1}" | \ipset -R -exist &>/dev/null
     fi
 }
 
@@ -1584,37 +1619,32 @@ _add_delete_domain() {
     is_ipv6_address "$domain" && is_ipv6=true
 
     if is_global_mode || is_chnroute_mode; then
-        is_true $ipv4 && ipset_name=privaddr  && dns_name=$dns_direct
-        is_true $ipv6 && ipset_name=privaddr6 && dns_name=$dns_direct6
+        is_true $ipv4 && ipset_name=${ipset_privaddr_name}  && dns_name=$dns_direct
+        is_true $ipv6 && ipset_name=${ipset_privaddr_name}6 && dns_name=$dns_direct6
     elif is_gfwlist_mode; then
-        is_true $ipv4 && ipset_name=gfwlist  && dns_name=$dns_remote
-        is_true $ipv6 && ipset_name=gfwlist6 && dns_name=$dns_remote6
+        is_true $ipv4 && ipset_name=${ipset_gfwlist_name}  && dns_name=$dns_remote
+        is_true $ipv6 && ipset_name=${ipset_gfwlist_name}6 && dns_name=$dns_remote6
     fi
 
     [ -n "$ipset_name" ] || log_fault "ipset name error"
 
     if [ "$action" = "add" ]; then
-        if is_true $is_ipv4 || is_true $is_ipv6 ; then
-            \ipset add -exist $ipset_name "$domain"
-        elif [ -n "$file_name" ]; then
+        if [ -n "$file_name" ] && is_domain_name $domain; then
             \grep -qF "^${domain}$" "$customfile_name" && \echo $(color_red "domain $domain exists") && return 1
             \grep -qF "/$domain/" "$file_name"         && \echo $(color_red "domain $domain exists") && return 1
 
             \echo "$domain" >>"$customfile_name"
             \echo "server = /$domain/$dns_name\nipset = /$domain/$ipset_name"   >>"$file_name"
         fi
+        \ipset add -exist $ipset_name "$domain"
 
         \echo "domain added" $(color_green "$domain")
     elif [ "$action" = "delete" ]; then
-        if is_true $is_ipv4 || is_true $is_ipv6  ;then
-            \ipset del -exist  $ipset_name "$domain"
-        elif [ -n "$file_name" ]; then
-            \local ip=$(resolve_hostname "$domain")
-            [ -n "$ip" ] || { \echo $(color_red "$domain resolve error"); return 1; }
+        if [ -n "$file_name" ] && is_domain_name $domain; then
             \sed -ie "#^${domain}$#d" "$customfile_name"
             \sed -ie "#/${domain}/#d" "$file_name"
-            ipset del -exist $ipset_name $ip
         fi
+        \ipset del -exist  $ipset_name "$domain"
 
         \echo "domain deleted" $(color_red "$domain")
     fi
@@ -1622,6 +1652,10 @@ _add_delete_domain() {
 
 do_modify_gfwlist() {
     local action="$1";shift;
+
+    is_true "$ipv4" && create_ipset_gfwlist -4
+    is_true "$ipv6" && create_ipset_gfwlist -6
+
     for domain in "$@"; do
         _add_delete_domain $action $domain "$dnsmasq_gfwlist_file" "$file_gfwlist_ext"
     done
@@ -1631,6 +1665,10 @@ do_modify_gfwlist() {
 
 do_modify_ignlist() {
     local action="$1";shift;
+
+    is_true "$ipv4" && create_ipset_privaddr -4
+    is_true "$ipv6" && create_ipset_privaddr -6
+
     for domain in "$@"; do
         _add_delete_domain $action $domain "$dnsmasq_ignore_file" "$file_ignlist_ext"
     done
@@ -1667,7 +1705,7 @@ do_show() {
             \echo "       $bin show" $(color_white "iptables");
         ;;
         *)
-            \echo $(color_yellow "unknown service:") $(color_red "$srv");\
+            \echo $(color_yellow "unknown service:") $(color_red "$1");\
             \echo $(color_white "try \"$bin update help\"");
             exit 1
         ;;
@@ -1697,7 +1735,7 @@ do_update() {
             do_update chnroute
         ;;
         *)
-            \echo $(color_yellow "unknown service:") $(color_red "$srv");\
+            \echo $(color_yellow "unknown service:") $(color_red "$1");\
             \echo $(color_white "try \"$bin update help\"");
             exit 1
         ;;
@@ -1720,25 +1758,30 @@ do_start() {
             }
         ;;
         i|ipt|iptables)
+            chk_proxyserver_is_started || log_fault "proxy is stoped. please start proxy first."
             chk_iptables_is_started || {
                 enable_ipforward
                 disable_icmpredir
                 start_iptables
             }
         ;;
+        ipset)
+            start_ipset
+        ;;
         -h|--help|h|help)
             \echo "Usage: $bin start" $(color_white "[SERVICE]");
             \echo "       $bin start" $(color_white "proxy");
             \echo "       $bin start" $(color_white "dnsmasq");
             \echo "       $bin start" $(color_white "iptables");
+            \echo "       $bin start" $(color_white "ipset");
         ;;
         '')
             check_proxy_env
             check_iptable_env
 
             [ "$(type -t pre_start)" = 'function' ] && pre_start "$@"
-            do_start proxy
             do_start dnsmasq
+            do_start proxy
             do_start iptables
             [ "$(type -t post_start)" = 'function' ] && post_start "$@"
         ;;
@@ -1755,6 +1798,7 @@ do_stop() {
 
     case "$srv" in
         p|proxy)
+            chk_iptables_is_started && log_fault "must stop iptables first"
             chk_proxyserver_is_started && {
                 stop_proxyserver
             }
@@ -1770,21 +1814,26 @@ do_stop() {
             chk_iptables_is_started && {
                 delete_iproute2
                 do_stop_iptables
-                delete_ipset_chnroute
-                delete_ipset_gfwlist
             }
+        ;;
+        ipset)
+            { chk_proxyserver_is_started || chk_iptables_is_started; } && log_fault "ipset is used, stop failed"
+            delete_ipset_chnroute
+            delete_ipset_gfwlist
         ;;
         -h|--help|h|help)
             \echo "Usage: $bin stop" $(color_white "[SERVICE]");
             \echo "       $bin stop" $(color_white "proxy");
             \echo "       $bin stop" $(color_white "dnsmasq");
             \echo "       $bin stop" $(color_white "iptables");
+            \echo "       $bin stop" $(color_white "ipset");
         ;;
         '')
             [ "$(type -t pre_stop)" = 'function' ] && pre_stop "$@"
             do_stop iptables
             do_stop dnsmasq
             do_stop proxy
+            do_stop ipset
             [ "$(type -t post_stop)" = 'function' ] && post_stop "$@"
         ;;
         *)
@@ -1888,6 +1937,11 @@ do_status() {
         \printf "%-${max}s%s\n" "pxy/udp:" $(color_green '[running]') || \
         \printf "%-${max}s%s\n" "pxy/udp:" $(color_red '[stopped]')
     fi
+
+    chk_iptables_is_started && \
+        \printf "%-${max}s%s\n" "iptables:" $(color_green '[configured]') || \
+        \printf "%-${max}s%s\n" "iptables:" $(color_red '[deleted]')
+
     process_is_running $status_dnsmasq_pid && \
         \printf "%-${max}s%s\n" "dnsmasq:" $(color_green '[running]') || \
         \printf "%-${max}s%s\n" "dnsmasq:" $(color_red '[stopped]')
