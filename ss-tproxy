@@ -817,15 +817,19 @@ start_dnsserver_chnroute() {
         chinadns_args+=" -t $dns_remote6"
     fi
 
-    is_true "$ipv4" && \grep -vE '^[0-9]' "$file_chnroute_set" | awk '{print "add chnroute "$1}'   | \ipset -R -exist
-    is_true "$ipv6" && \grep -vE '^[0-9]' "$file_chnroute6_set" | awk '{print "add chnroute6 "$1}' | \ipset -R -exist
+    is_true "$ipv4" && create_ipset_chnroute -4
+    is_true "$ipv6" && create_ipset_chnroute -6
+
+    is_true "$ipv4" && \grep -E "$IPV4_NET_PATTERN" "$file_chnroute_set" | awk '{print "add chnroute "$1}'   | \ipset -R -exist
+    is_true "$ipv6" && \grep -E "$IPV6_NET_PATTERN" "$file_chnroute6_set" | awk '{print "add chnroute6 "$1}' | \ipset -R -exist
+
     is_true "$ipv4" && for addr in "${chinadns_privaddr4[@]}"; do \echo "add chnroute $addr";  done | \ipset -R -exist
     is_true "$ipv6" && for addr in "${chinadns_privaddr6[@]}"; do \echo "add chnroute6 $addr"; done | \ipset -R -exist
 
     if is_true "$chinadns_gfwlist_mode"; then
         local gfwlist_domain_string=$( {
             \grep -ioE "$DOMAIN_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
-            \grep -ioE "$IPV4_NET_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
+            \grep -oE "$IPV4_NET_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
             \grep -ioE "$IPV6_NET_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
          })
         status_chinadns_pid=$("$bin_chinadnsng" $chinadns_args <<<"$gfwlist_domain_string" &>>$chinadns_logfile & \echo $!)
@@ -2087,7 +2091,7 @@ do_flush() {
 }
 
 do_version() {
-    \echo "ss-tproxy v5.2.1"
+    \echo "ss-tproxy v5.2"
     exit
 }
 
