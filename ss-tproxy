@@ -8,6 +8,10 @@ readonly bin="${0##*/}"
 base_dir="/opt/etc/ssr"
 ss_tproxy_config="$base_dir/ss-tproxy.conf"
 
+declare -a __optentries=()
+declare -a __proxy_svripv4=()
+declare -a __proxy_svripv6=()
+
 readonly IPV4_RESERVED_IPADDRS=(
     0.0.0.0/8
     10.0.0.0/8
@@ -64,7 +68,7 @@ is_false()          { [[ "$1" = 'false' ]];     }
 file_is_exists()    { [[ -f "$1" ]];            }
 
 command_is_exists()     { \which "$1" &>/dev/null;           }
-process_is_running()    { \kill -0 "$1" &>/dev/null;         }
+process_is_running()    { [ "$1" -gt '0' ] && \kill -0 "$1" &>/dev/null;         }
 tcp_port_is_exists()    { $netstat -lnpt | \grep -qE ":$1[ \t]"; }
 udp_port_is_exists()    { $netstat -anpu | \grep -qE ":$1[ \t]"; }
 
@@ -123,6 +127,8 @@ is_ss()        { [ "$proxy_schema" = "ss" ];      }
 is_ssr()       { [ "$proxy_schema" = "ssr" ];     }
 is_v2ray()     { [ "$proxy_schema" = "vmess" ];   }
 
+get_listen_addr() { is_false "$proxy_local" && \echo '0.0.0.0' || \echo '127.0.0.1'; }
+
 is_enabled_udp()    { is_false "$tcponly";      }
 is_need_iproute()   { is_true "$tproxy" || is_enabled_udp; }
 
@@ -151,11 +157,11 @@ set_sysctl_option() {
 
 print_proxy_status() {
     is_v2ray && \
-        \printf "$(color_yellow $(jq -rc .outbounds[].streamSettings.wsSettings.headers.host <"$v2ray_config_file" | \echo))";
+        \printf "$(color_yellow $(\jq -rc .outbounds[].streamSettings.wsSettings.headers.host <"$v2ray_config_file"))";
     is_ssr   && \
-        \printf "$(color_yellow $(jq -rc .remarks <"$ssr_config_file"))";
+        \printf "$(color_yellow $(\jq -rc .remarks <"$ssr_config_file"))";
     is_ss   && \
-        \printf "$(color_yellow $(jq -rc .server <"$ssr_config_file"))";
+        \printf "$(color_yellow $(\jq -rc .server <"$ssr_config_file"))";
 }
 
 resolve_hostname_by_hosts() {
@@ -246,16 +252,34 @@ ipset_family() {
 }
 
 load_pidfile() {
-    \source "$file_dnsserver_pid" || log_fault "load pidfile failed, exit-code: $?"
+    status_dnsmasq_pid=$(   cut -d: -f1 "$file_dnsserver_pid" | grep -E '^[0-9]+$') && \
+    status_chinadns_pid=$(  cut -d: -f2 "$file_dnsserver_pid" | grep -E '^[0-9]+$') && \
+    status_dns2tcp4_pid=$(  cut -d: -f3 "$file_dnsserver_pid" | grep -E '^[0-9]+$') && \
+    status_dns2tcp6_pid=$(  cut -d: -f4 "$file_dnsserver_pid" | grep -E '^[0-9]+$') && \
+    status_v2ray_pid=$(     cut -d: -f5 "$file_dnsserver_pid" | grep -E '^[0-9]+$') && \
+    status_ss_pid=$(        cut -d: -f6 "$file_dnsserver_pid" | grep -E '^[0-9]+$') && return 0
+
+    log_fault "load pidfile failed, exit-code: $?"
+}
+
+set_default_pid() {
+    status_dnsmasq_pid=0
+    status_chinadns_pid=0
+    status_dns2tcp4_pid=0
+    status_dns2tcp6_pid=0
+    status_v2ray_pid=0
+    status_ss_pid=0
 }
 
 update_pidfile() {
-    \echo "status_dnsmasq_pid=$status_dnsmasq_pid"    >$file_dnsserver_pid
-    \echo "status_chinadns_pid=$status_chinadns_pid" >>$file_dnsserver_pid
-    \echo "status_dns2tcp4_pid=$status_dns2tcp4_pid" >>$file_dnsserver_pid
-    \echo "status_dns2tcp6_pid=$status_dns2tcp6_pid" >>$file_dnsserver_pid
-    \echo "status_v2ray_pid=$status_v2ray_pid"       >>$file_dnsserver_pid
-    \echo "status_ss_pid=$status_ss_pid"             >>$file_dnsserver_pid
+    {
+        \printf ${status_dnsmasq_pid:-0}:
+        \printf ${status_chinadns_pid:-0}:
+        \printf ${status_dns2tcp4_pid:-0}:
+        \printf ${status_dns2tcp6_pid:-0}:
+        \printf ${status_v2ray_pid:-0}:
+        \printf ${status_ss_pid:-0}:
+    } >"$file_dnsserver_pid"
 }
 
 delete_pidfile() {
@@ -309,8 +333,6 @@ config_check_allow_override() {
 load_config() {
     file_is_exists "$ss_tproxy_config" || log_fault "file not found: $ss_tproxy_config"
 
-    local opt_overrides=(${optentries[@]})
-
     #save_config "$ss_tproxy_config" base_dir "'$base_dir'"
     \source "$ss_tproxy_config" "${arguments[@]}" || log_fault "load config failed, exit-code: $?"
 
@@ -319,18 +341,24 @@ load_config() {
     tproxy=${tproxy:-false}
     tcponly=${tcponly:-false}
     selfonly=${selfonly:-false}
-    proxy_tcpport=${proxy_tcpport:-60080}
-    proxy_udpport=${proxy_udpport:-60080}
     dns_direct=${dns_direct:-114.114.114.114}
     dns_direct6=${dns_direct6:-240C::6666}
     dns_remote=${dns_remote:-8.8.8.8#53}
     dns_remote6=${dns_remote6:-2001:4860:4860::8888#53}
+
     proxy_uri=${proxy_uri:-}
+    proxy_log_enable=${proxy_log_enable:-false}
+    proxy_log_file=${proxy_log_file:-$base_dir/v2ray.log}
+    proxy_log_level=${proxy_log_level:-warning}
     proxy_startcmd=${proxy_startcmd:-}
     proxy_stopcmd=${proxy_stopcmd:-}
+    proxy_srvport=${proxy_srvport:-}
+    proxy_local=${proxy_local:-false}
+    proxy_tcpport=${proxy_tcpport:-60080}
+    proxy_udpport=${proxy_udpport:-60080}
 
-    is_variable_defined proxy_svraddr4 || proxy_svraddr4=()
-    is_variable_array proxy_svraddr4 || proxy_svraddr4=("$proxy_svraddr4")
+    is_variable_defined proxy_srvaddr4 || proxy_srvaddr4=()
+    is_variable_array proxy_srvaddr4 || proxy_srvaddr4=("$proxy_srvaddr4")
     is_variable_defined proxy_svraddr6 || proxy_svraddr6=()
     is_variable_array proxy_svraddr6 || proxy_svraddr6=("$proxy_svraddr6")
 
@@ -340,17 +368,17 @@ load_config() {
     dnsmasq_cache_time=${dnsmasq_cache_time:-3600}
     dnsmasq_query_maxcnt=${dnsmasq_query_maxcnt:-32}
     dnsmasq_log_enable=${dnsmasq_log_enable:-false}
-    dnsmasq_log_file="${dnsmasq_log_file:-$base_dir/dnsmasq.log}"
+    dnsmasq_log_file="${dnsmasq_log_file:-$base_dir/proxy.log}"
+    dnsmasq_log_level="${dnsmasq_log_level:-warning}"
     dnsmasq_config_file="${dnsmasq_config_file:-$base_dir/dnsmasq.conf}"
-    dnsmasq_gfwlist_file="${dnsmasq_gfwlist_file:-$dnsmasq_conf_dir/dnsmasq.gfwlist.conf}"
-    dnsmasq_ignore_file="${dnsmasq_ignore_file:-$dnsmasq_conf_dir/dnsmasq.ignore.conf}"
+    dnsmasq_gfwlist_file="${dnsmasq_gfwlist_file:-$base_dir/dnsmasq.gfwlist.conf}"
+    dnsmasq_ignore_file="${dnsmasq_ignore_file:-$base_dir/dnsmasq.ignore.conf}"
     is_variable_defined dnsmasq_conf_dir || dnsmasq_conf_dir=()
     is_variable_array dnsmasq_conf_dir || dnsmasq_conf_dir=("$dnsmasq_conf_dir")
     is_variable_defined dnsmasq_conf_file || dnsmasq_conf_file=()
     is_variable_array dnsmasq_conf_file || dnsmasq_conf_file=("$dnsmasq_conf_file")
     is_variable_defined dnsmasq_conf_string || dnsmasq_conf_string=()
     is_variable_array dnsmasq_conf_string || dnsmasq_conf_string=("$dnsmasq_conf_string")
-
 
     chinadns_bind_port=${chinadns_bind_port:-65353}
     chinadns_timeout=${chinadns_timeout:-3}
@@ -408,7 +436,7 @@ load_config() {
     bin_dns2tcp="${bin_dns2tcp:-}"
 
     local args="" key= val=
-    for optentry in ${opt_overrides[@]}; do
+    for optentry in ${__optentries[@]}; do
         key=$(\cut -d= -f1 <<<"$optentry")
         var=$(\cut -d= -f2 <<<"$optentry")
         [ -z "$key" ] && continue
@@ -601,15 +629,15 @@ check_config() {
         file_is_exists "$ssr_config_file" || \touch "$ssr_config_file"
     fi
 
-    file_is_exists "$file_dnsserver_pid" && load_pidfile
+    file_is_exists "$file_dnsserver_pid" && load_pidfile || set_default_pid
 
     proxy_schema=$(parse_schema "$proxy_uri")
 
     { ! is_global_mode && ! is_gfwlist_mode && ! is_chnroute_mode; } && log_fault "the value of the mode option is invalid: $mode"
     { [ -n "$proxy_schema" ] && ! is_ss && ! is_ssr && ! is_v2ray; } && log_fault "unsupport proxy schema: $proxy_schema"
 
-    [ -z "$proxy_svrport" ] && log_fault "the value of the proxy_svrport option is empty"
-    [ "${#proxy_svraddr4[@]}" -eq 0 -a "${#proxy_svraddr6[@]}" -eq 0 ] && log_fault "both proxy_svraddr4 and proxy_svraddr6 are empty"
+    [ -z "$proxy_srvport" ] && log_fault "the value of the proxy_srvport option is empty"
+    [ "${#proxy_srvaddr4[@]}" -eq 0 -a "${#proxy_svraddr6[@]}" -eq 0 ] && log_fault "both proxy_srvaddr4 and proxy_svraddr6 are empty"
 }
 
 setname_chnroute() {
@@ -626,18 +654,18 @@ setname_privaddr() {
 
 resolve_svraddr() {
     if is_true "$ipv4"; then
-        proxy_svripv4=()
-        for svraddr in "${proxy_svraddr4[@]}"; do
+        __proxy_svripv4=()
+        for svraddr in "${proxy_srvaddr4[@]}"; do
             is_ipv4_address "$svraddr" && local svripv4="$svraddr" || local svripv4=$(resolve_hostname4 "$svraddr")
-            proxy_svripv4+=("$svripv4")
+            __proxy_svripv4+=("$svripv4")
         done
     fi
 
     if is_true "$ipv6"; then
-        proxy_svripv6=()
+        __proxy_svripv6=()
         for svraddr in "${proxy_svraddr6[@]}"; do
             is_ipv6_address "$svraddr" && local svripv6="$svraddr" || local svripv6=$(resolve_hostname6 "$svraddr")
-            proxy_svripv6+=("$svripv6")
+            __proxy_svripv6+=("$svripv6")
         done
     fi
 }
@@ -754,7 +782,7 @@ conf-file = $dnsmasq_ignore_file
 EOF
     _convert_dnsmasq_domain "$file_ignlist_ext" "$dnsmasq_ignore_file" $dns_direct $dns_direct6 privaddr
 
-    status_dnsmasq_pid=$(\dnsmasq --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
+    status_dnsmasq_pid=$("$bin_dnsmasq" --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
 }
 
 start_dnsserver_gfwlist() {
@@ -767,8 +795,9 @@ EOF
     \echo $(color_yellow "parsing gfwlist ...")
 
     _convert_dnsmasq_domain "$file_gfwlist_txt" "$dnsmasq_gfwlist_file" $dns_remote $dns_remote6 gfwlist
+    _convert_dnsmasq_domain "$file_gfwlist_ext" "$dnsmasq_gfwlist_file" $dns_remote $dns_remote6 gfwlist
 
-    status_dnsmasq_pid=$(\dnsmasq --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
+    status_dnsmasq_pid=$("$bin_dnsmasq" --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
 }
 
 start_dnsserver_chnroute() {
@@ -794,10 +823,14 @@ start_dnsserver_chnroute() {
     is_true "$ipv6" && for addr in "${chinadns_privaddr6[@]}"; do \echo "add chnroute6 $addr"; done | \ipset -R -exist
 
     if is_true "$chinadns_gfwlist_mode"; then
-        local gfwlist_domain_string=$(\cat $file_gfwlist_txt; \grep -E '^@' $file_gfwlist_ext | \cut -c2-)
-        status_chinadns_pid=$(\chinadns-ng $chinadns_args <<<"$gfwlist_domain_string" &>>$chinadns_logfile & \echo $!)
+        local gfwlist_domain_string=$( {
+            \grep -ioE "$DOMAIN_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
+            \grep -ioE "$IPV4_NET_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
+            \grep -ioE "$IPV6_NET_PATTERN" $file_gfwlist_txt $file_gfwlist_ext;
+         })
+        status_chinadns_pid=$("$bin_chinadnsng" $chinadns_args <<<"$gfwlist_domain_string" &>>$chinadns_logfile & \echo $!)
     else
-        status_chinadns_pid=$(\chinadns-ng $chinadns_args </dev/null &>>$chinadns_logfile & \echo $!)
+        status_chinadns_pid=$("$bin_chinadnsng" $chinadns_args </dev/null &>>$chinadns_logfile & \echo $!)
     fi
 
     \cat <<EOF >"$dnsmasq_config_file"
@@ -808,15 +841,15 @@ EOF
 
     _convert_dnsmasq_domain "$file_ignlist_ext" "$dnsmasq_ignore_file" $dns_direct $dns_direct6 privaddr
 
-    status_dnsmasq_pid=$(\dnsmasq --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
+    status_dnsmasq_pid=$("$bin_dnsmasq" --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
 }
 
 start_dnsmasq_daemon() {
     local dnsmasq_append_config=("${dnsmasq_conf_string[@]}")
     if is_true "$ipv4"; then
-        for ((i = 0; i < ${#proxy_svraddr4[@]}; ++i)); do
-            local server_host="${proxy_svraddr4[i]}"
-            local server_addr="${proxy_svripv4[i]}"
+        for ((i = 0; i < ${#proxy_srvaddr4[@]}; ++i)); do
+            local server_host="${proxy_srvaddr4[i]}"
+            local server_addr="${__proxy_svripv4[i]}"
             if is_domain_name "$server_host"; then
                 dnsmasq_append_config+=("address = /$server_host/$server_addr")
             fi
@@ -825,7 +858,7 @@ start_dnsmasq_daemon() {
     if is_true "$ipv6"; then
         for ((i = 0; i < ${#proxy_svraddr6[@]}; ++i)); do
             local server_host="${proxy_svraddr6[i]}"
-            local server_addr="${proxy_svripv6[i]}"
+            local server_addr="${__proxy_svripv6[i]}"
             if is_domain_name "$server_host"; then
                 dnsmasq_append_config+=("address = /$server_host/$server_addr")
             fi
@@ -838,7 +871,7 @@ log-facility = $dnsmasq_log_file
 log-async = 20
 domain-needed
 cache-size = $dnsmasq_cache_size
-$(\dnsmasq --help | \grep -qF min-cache-ttl && \echo "min-cache-ttl = $dnsmasq_cache_time")
+$("$bin_dnsmasq" --help | \grep -qF min-cache-ttl && \echo "min-cache-ttl = $dnsmasq_cache_time")
 no-negcache
 no-resolv
 port = $dnsmasq_bind_port
@@ -876,12 +909,12 @@ EOF
         if is_true "$ipv4"; then
             local dns2tcp_args="-L $dns2tcp_listen_addr4 -R $dns2tcp_remote_addr4"
             is_true "$dns2tcp_verbose" && dns2tcp_args+=" -v"
-            status_dns2tcp4_pid=$(\dns2tcp $dns2tcp_args </dev/null &>>$dns2tcp_logfile & \echo $!)
+            status_dns2tcp4_pid=$("$bin_dns2tcp" $dns2tcp_args </dev/null &>>$dns2tcp_logfile & \echo $!)
         fi
         if is_true "$ipv6"; then
             local dns2tcp_args="-L $dns2tcp_listen_addr6 -R $dns2tcp_remote_addr6"
             is_true "$dns2tcp_verbose" && dns2tcp_args+=" -v"
-            status_dns2tcp6_pid=$(\dns2tcp $dns2tcp_args </dev/null &>>$dns2tcp_logfile & \echo $!)
+            status_dns2tcp6_pid=$("$bin_dns2tcp" $dns2tcp_args </dev/null &>>$dns2tcp_logfile & \echo $!)
         fi
     fi
 
@@ -889,10 +922,10 @@ EOF
 }
 
 stop_dnsserver() {
-    [ -n "$status_dnsmasq_pid" ]    && kill -9 $status_dnsmasq_pid  &>/dev/null
-    [ -n "$status_chinadns_pid" ]   && kill -9 $status_chinadns_pid &>/dev/null
-    [ -n "$status_dns2tcp4_pid" ]   && kill -9 $status_dns2tcp4_pid &>/dev/null
-    [ -n "$status_dns2tcp6_pid" ]   && kill -9 $status_dns2tcp6_pid &>/dev/null
+    [ '0' -lt "$status_dnsmasq_pid" ]    && kill -9 $status_dnsmasq_pid  &>/dev/null
+    [ '0' -lt "$status_chinadns_pid" ]   && kill -9 $status_chinadns_pid &>/dev/null
+    [ '0' -lt "$status_dns2tcp4_pid" ]   && kill -9 $status_dns2tcp4_pid &>/dev/null
+    [ '0' -lt "$status_dns2tcp6_pid" ]   && kill -9 $status_dns2tcp6_pid &>/dev/null
 
     stop_proxyserver
     delete_pidfile
@@ -1148,7 +1181,7 @@ start_iptables_tproxy_mode() {
     is_ipv4_ipts "$1" && loopback_addr="127.0.0.1" || loopback_addr="::1"
 
     local svr_ip_array=()
-    is_ipv4_ipts "$1" && svr_ip_array=("${proxy_svripv4[@]}") || svr_ip_array=("${proxy_svripv6[@]}")
+    is_ipv4_ipts "$1" && svr_ip_array=("${__proxy_svripv4[@]}") || svr_ip_array=("${__proxy_svripv6[@]}")
 
     local direct_dns_ip
     is_ipv4_ipts "$1" && direct_dns_ip="$dns_direct" || direct_dns_ip="$dns_direct6"
@@ -1169,8 +1202,8 @@ start_iptables_tproxy_mode() {
     iptables $1 -t mangle -A SSTP_RULE -m mark --mark $ipts_rt_mark -j RETURN
 
     for svr_ip in "${svr_ip_array[@]}"; do
-        iptables $1 -t mangle -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_svrport -j RETURN
-        is_enabled_udp && iptables $1 -t mangle -A SSTP_RULE -p udp -d $svr_ip -m multiport --dports $proxy_svrport -j RETURN
+        iptables $1 -t mangle -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
+        is_enabled_udp && iptables $1 -t mangle -A SSTP_RULE -p udp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
     done
 
     if is_enabled_udp; then
@@ -1233,7 +1266,7 @@ start_iptables_redirect_mode() {
     is_ipv4_ipts $1 && gfwlist_setfamily="inet" || gfwlist_setfamily="inet6"
 
     local svr_ip_array=()
-    is_ipv4_ipts $1 && svr_ip_array=("${proxy_svripv4[@]}") || svr_ip_array=("${proxy_svripv6[@]}")
+    is_ipv4_ipts $1 && svr_ip_array=("${__proxy_svripv4[@]}") || svr_ip_array=("${__proxy_svripv6[@]}")
 
     local direct_dns_ip
     is_ipv4_ipts $1 && direct_dns_ip="$dns_direct" || direct_dns_ip="$dns_direct6"
@@ -1251,7 +1284,7 @@ start_iptables_redirect_mode() {
     iptables $1 -t nat -N SSTP_RULE
 
     for svr_ip in "${svr_ip_array[@]}"; do
-        iptables $1 -t nat -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_svrport -j RETURN
+        iptables $1 -t nat -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
     done
 
     if ! is_enabled_udp; then
@@ -1278,7 +1311,7 @@ start_iptables_redirect_mode() {
         iptables $1 -t mangle -A SSTP_RULE -m mark --mark $ipts_rt_mark -j RETURN
 
         for svr_ip in "${svr_ip_array[@]}"; do
-            iptables $1 -t mangle -A SSTP_RULE -p udp -d $svr_ip -m multiport --dports $proxy_svrport -j RETURN
+            iptables $1 -t mangle -A SSTP_RULE -p udp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
         done
 
         iptables $1 -t mangle -A SSTP_RULE -p udp -d $direct_dns_ip --dport 53               -j RETURN
@@ -1327,6 +1360,7 @@ start_iptables_redirect_mode() {
 
 start_iptables() {
     check_iptable_env
+    resolve_svraddr
 
     is_true "$ipv4" && start_iptables_pre_rules -4
     is_true "$ipv6" && start_iptables_pre_rules -6
@@ -1394,15 +1428,27 @@ start_ipset() {
     is_true "$ipv6" && create_ipset -6
 }
 
+# return code
+# 1:URI error
+# 2:configuraion error
+# 3:hostname resolve error
 start_proxyserver() {
     check_proxy_env
 
     [ -z "$proxy_schema" ] && return 99
 
-    local exit_status=
-    is_ss && parse_ss && { start_ssr; exit_status=$?; }
-    is_ssr && parse_ssr && { start_ssr; exit_status=$?; }
-    is_v2ray && parse_vmess && { start_v2ray; exit_status=$?; }
+    is_ss && parse_ss && start_ssr
+    is_ssr && parse_ssr && start_ssr
+    is_v2ray && parse_vmess && start_v2ray
+
+    local exit_status=$?
+    case "$exit_status" in
+        1)   log_fault "uri invalid.";;
+        2)   log_fault "configuration error";;
+        3)   log_fault "hostname resolve error";;
+        0)   ;;
+        *)   log_fault "unknown error";;
+    esac
 
     [ "$exit_status" -eq 0 ] && update_pidfile
 
@@ -1410,12 +1456,12 @@ start_proxyserver() {
 }
 
 stop_proxyserver() {
-    [ -n "$status_v2ray_pid" ]      && kill $status_v2ray_pid       &>/dev/null
-    [ -n "$status_ss_pid" ]         && kill $status_ss_pid          &>/dev/null
+    [ '0' -lt "$status_v2ray_pid" ]      && kill $status_v2ray_pid       &>/dev/null
+    [ '0' -lt "$status_ss_pid" ]         && kill $status_ss_pid          &>/dev/null
 }
 
 start_ssr() {
-    status_ss_pid=$($bin_ssr -c "$v2ray_config_file" &>/dev/null & \echo $! || \
+    status_ss_pid=$($bin_ssr -c "$ssr_config_file" &>/dev/null & \echo $! || \
     log_error "shadowsocks.conf error, can't start shadowsocks!";)
 }
 
@@ -1429,25 +1475,20 @@ parse_proxy() {
     proxy_schema=$(parse_schema "$1")
     { ! is_ss && ! is_ssr && ! is_v2ray; } && log_fault "unsupport proxy schema: $proxy_schema"
 
-    is_ss && parse_ss
-    is_ssr && parse_ssr
-    is_v2ray && parse_vmess
-
     stop_proxyserver
-    start_proxyserver && \
+    start_proxyserver
+
     save_config "$ss_tproxy_config" -a proxy_uri "'$proxy_uri'"
 
     \echo $(color_white $(\printf "%-15s" "parse success:"))
 
-    is_ss    && \echo $(print_proxy_status)
-    is_ssr   && \echo $(print_proxy_status)
-    is_v2ray && \echo $(print_proxy_status)
+    print_proxy_status
 }
 
 parse_ssr() {
     chk_base64
     local proxy_ssr_config=$(\sed '{s/ssr:\/\///g;s/-/+/g;s/_/\//g;}' <<<"$proxy_uri" | $base64_decode 2>/dev/null)
-    [ -n "$proxy_ssr_config" ] || log_fault "invalid ssr URI, unable to resolve!"
+    [ -n "$proxy_ssr_config" ] || return 1
 
     local proxy_ssr_srvhost=$(\cut -d: -f1 <<<"$proxy_ssr_config")
     local proxy_ssr_srvport=$(\cut -d: -f2 <<<"$proxy_ssr_config")
@@ -1461,6 +1502,7 @@ parse_ssr() {
     local proxy_ssr_proto_param=$(url_query protoparam "$proxy_ssr_params" | $base64_decode 2>/dev/null)
     local proxy_ssr_remarks=$(url_query remarks "$proxy_ssr_params" | $base64_decode 2>/dev/null)
     local proxy_ssr_group=$(url_query group "$proxy_ssr_params" | $base64_decode 2>/dev/null)
+    local proxy_ssr_loaddr=$(get_listen_addr)
 
     if is_true "$ipv6"; then
         local proxy_ssr_ip=$(resolve_hostname6 "$proxy_ssr_srvhost")
@@ -1470,9 +1512,11 @@ parse_ssr() {
         is_ipv4_address $proxy_ssr_ip || proxy_ssr_ip=
     fi
 
+    [ -z "${proxy_ssr_ip}" ] && return 3
+
     local ssr_config='{"server":"'$proxy_ssr_srvhost'","server_port":"'$proxy_ssr_srvport'","local_addressr":"'$proxy_ssr_loaddr'","local_port":"'$proxy_tcpport'","encrypt_method":"'$proxy_ssr_method'","passrword":"'$proxy_ssr_passwd'","protocol":"'$proxy_ssr_protocol'","protocolparam":"'$proxy_ssr_proto_param'","obfs":"'$proxy_ssr_obfs'","obfsparam":"'$proxy_ssr_obfs_param'","remarks":"'$proxy_ssr_remarks'","group":"'$proxy_ssr_group'"}'
 
-    jq . <<<"${ssr_config}" >/tmp/shadowsocks.conf || log_fault "shadowsocks config failed"
+    \jq . <<<"${ssr_config}" >/tmp/shadowsocks.conf || return 2
 
     \mv /tmp/shadowsocks.conf "$ssr_config_file" && \
     \echo "shadowsocks.conf resolve" $(color_green "succeed !!")
@@ -1487,7 +1531,7 @@ parse_ss() {
     local proxy_ss_srvport=$(\cut -d@ -f2 <<<"$proxy_ss_config" | \cut -d: -f2)
     local proxy_ss_method=$(\cut -d@ -f1 <<<"$proxy_ss_config" | \cut -d: -f1)
     local proxy_ss_passwd="$(\cut -d@ -f1 <<<"$proxy_ss_config" | \cut -d: -f2)"
-    local proxy_ss_loaddr='0.0.0.0'
+    local proxy_ss_loaddr=$(get_listen_addr)
     local proxy_ss_fastopen='false'
     local proxy_ss_timeout='0'
 
@@ -1499,19 +1543,25 @@ parse_ss() {
         is_ipv4_address $proxy_ss_ip || proxy_ss_ip=
     fi
 
+    [ -z "${proxy_ss_ip}" ] && return 3
+
     local ss_config='{"server":"'$proxy_ss_srvhost'","server_port":"'$proxy_ss_srvport'","local_address":"'$proxy_ss_loaddr'","local_port":"'$proxy_tcpport'","encrypt_method":"'$proxy_ss_method'","password":"'$proxy_ss_passwd'"}'
 
-    jq . <<<"${ss_config}" >/tmp/shadowsocks.conf || return 2
+    \jq . <<<"${ss_config}" >/tmp/shadowsocks.conf || return 2
+
+    save_config "$ss_tproxy_config" \
+        proxy_srvaddr4 "$proxy_ss_ip" \
+        proxy_srvport "$proxy_ss_srvport"
 
     \mv /tmp/shadowsocks.conf "$ssr_config_file" && \
-    \echo "shadowsocks.conf resolve" $(color_green "succeed !!")
+    \echo "shadowsocks.conf configuration" $(color_green "succeed")
 }
 
 parse_vmess() {
     chk_base64
     # base64 decode
     local proxy_vmess_config=$(\sed -e '{s/vmess:\/\///g;s/-/+/g;s/_/\//g;}' <<<"$proxy_uri" | $base64_decode 2>/dev/null | \jq -c  .)
-    [ -n "$proxy_vmess_config" ] || log_fault "invalid vmess URI, unable to resolve!"
+    [ -n "$proxy_vmess_config" ] || return 1
 
     local proxy_vmess_add=$(\echo "$proxy_vmess_config"  | \jq -cr .add)
     local proxy_vmess_port=$(\echo "$proxy_vmess_config" | \jq -cr .port)
@@ -1522,6 +1572,7 @@ parse_vmess() {
     local proxy_vmess_host=$(\echo "$proxy_vmess_config" | \jq -c .host)
     local proxy_vmess_path=$(\echo "$proxy_vmess_config" | \jq -cr .path)
     local proxy_vmess_tls=$(\echo "$proxy_vmess_config"  | \jq -cr .tls)
+    local proxy_vmess_loaddr=$(get_listen_addr)
 
     if is_true "$ipv6"; then
         local proxy_vmess_ip=$(resolve_hostname6 "$proxy_vmess_add")
@@ -1531,6 +1582,7 @@ parse_vmess() {
         is_ipv4_address $proxy_vmess_ip || proxy_vmess_ip=
     fi
 
+    [ -z "${proxy_vmess_ip}" ] && return 3
     [[ "$proxy_vmess_path" == '' ]] && proxy_vmess_path="null"
     [[ "$proxy_vmess_net" != 'quic' ]] && proxy_vmess_host=$(\sed 's/,/","/g' <<<"$proxy_vmess_host")
 
@@ -1572,36 +1624,34 @@ parse_vmess() {
     \grep -qE '^[0-9][0-9]+$' <<<"$proxy_tcpport" || proxy_tcpport=60080
     \grep -qE '^[0-9][0-9]+$' <<<"$proxy_udpport" || proxy_udpport=60080
 
-    # save config
-    save_config "$ss_tproxy_config" \
-        proxy_tcpport "$proxy_tcpport" \
-        proxy_udpport "$proxy_udpport" \
-        proxy_svraddr4 "($proxy_vmess_ip)" \
-        proxy_svrport "$proxy_vmess_port" \
-        -e opts_ip_for_check_net "$proxy_vmess_ip"
-
     local in_stream='{"sockopt":{"mark":0,"tcpFastOpen":true,"tproxy":'${proxy_vmess_tproxy}'}}'
     local inbound;
 
     if [[ "$proxy_tcpport" != "$proxy_udpport" ]]; then
-        inbound='[{"protocol":"dokodemo-door","listen":"0.0.0.0","port":'${proxy_tcpport}',"settings":{"network": "tcp","followRedirect":true },"streamSettings":'${in_stream}'},{"protocol":"dokodemo-door","listen":"0.0.0.0","port":'${proxy_udpport}',"settings":{"network": "udp","followRedirect":true },"streamSettings":'${in_stream}'}]'
+        inbound='[{"protocol":"dokodemo-door","listen":"'${proxy_vmess_loaddr}'","port":'${proxy_tcpport}',"settings":{"network": "tcp","followRedirect":true },"streamSettings":'${in_stream}'},{"protocol":"dokodemo-door","listen":"'${proxy_vmess_loaddr}'","port":'${proxy_udpport}',"settings":{"network": "udp","followRedirect":true },"streamSettings":'${in_stream}'}]'
     else
-        inbound='[{"protocol":"dokodemo-door","listen":"0.0.0.0","port":'${proxy_tcpport}',"settings":{"network": "tcp,udp","followRedirect":true },"streamSettings":'${in_stream}'}]'
+        inbound='[{"protocol":"dokodemo-door","listen":"'${proxy_vmess_loaddr}'","port":'${proxy_tcpport}',"settings":{"network": "tcp,udp","followRedirect":true },"streamSettings":'${in_stream}'}]'
     fi
 
     ## v2ray log
-    local v_log='{"loglevel": "warning","error": "/var/log/v2ray-error.log","access": "/var/log/v2ray-access.log"}'
+    local v_log='{"loglevel": "'${proxy_log_level}'","error": "'${proxy_log_file}'","access": "'${proxy_log_file}'"}'
 
     local v2ray_config='{"log":'${v_log}',"dns":{},"stats":{},"inbounds":'${inbound}',"outbounds":'${outbound}',"routing":{},"policy":{},"reverse":{},"transport":{}}'
 
-    jq . <<<"${v2ray_config}" >/tmp/v2ray.conf || return 2
+    \jq . <<<"${v2ray_config}" >/tmp/v2ray.conf || return 2
 
-    if "$bin_v2ray" -test -config /tmp/v2ray.conf | \grep -qF 'Configuration OK'; then
-        mv /tmp/v2ray.conf "$v2ray_config_file" && \
-        \echo "v2ray.conf resolve" $(color_green "succeed !!")
-    else
-        log_fault "v2ray.conf resolve failed"
-    fi
+    "$bin_v2ray" -test -config /tmp/v2ray.conf | \grep -qF 'Configuration OK' || return 2
+
+    # save config
+    save_config "$ss_tproxy_config" \
+        proxy_tcpport "$proxy_tcpport" \
+        proxy_udpport "$proxy_udpport" \
+        proxy_srvaddr4 "($proxy_vmess_ip)" \
+        proxy_srvport "$proxy_vmess_port" \
+        -e opts_ip_for_check_net "$proxy_vmess_ip"
+
+    \mv /tmp/v2ray.conf "$v2ray_config_file" && \
+    \echo "v2ray.conf configuration" $(color_green "succeed")
 }
 
 _add_delete_domain() {
@@ -1611,12 +1661,13 @@ _add_delete_domain() {
     local customfile_name="$4";
     local ipset_name=;
 	local dns_name=;
-    local is_ipv4=false;
-    local is_ipv6=false;
 
-    is_domain_name "$domain" || { \echo $(color_red "invalid domain $domain") && return 1; }
-    is_ipv4_address "$domain" && is_ipv4=true
-    is_ipv6_address "$domain" && is_ipv6=true
+    ! is_domain_name "$domain" || \
+    ! is_ipv6_address "$domain" || \
+    ! is_ipv4_address "$domain" || \
+    ! grep -qE "$IPV4_NET_PATTERN" || \
+    ! grep -qE "$IPV6_NET_PATTERN" || \
+    { \echo $(color_red "invalid domain $domain") && return 1; }
 
     if is_global_mode || is_chnroute_mode; then
         is_true $ipv4 && ipset_name=${ipset_privaddr_name}  && dns_name=$dns_direct
@@ -1656,9 +1707,15 @@ do_modify_gfwlist() {
     is_true "$ipv4" && create_ipset_gfwlist -4
     is_true "$ipv6" && create_ipset_gfwlist -6
 
-    for domain in "$@"; do
-        _add_delete_domain $action $domain "$dnsmasq_gfwlist_file" "$file_gfwlist_ext"
-    done
+    if [ -z "$@" ]; then
+        while read domain; do
+            _add_delete_domain $action $domain "$dnsmasq_gfwlist_file" "$file_gfwlist_ext"
+        done
+    else
+        for domain in "$@"; do
+            _add_delete_domain $action $domain "$dnsmasq_gfwlist_file" "$file_gfwlist_ext"
+        done
+    fi
 
 	reload_dnsserver
 }
@@ -1669,9 +1726,15 @@ do_modify_ignlist() {
     is_true "$ipv4" && create_ipset_privaddr -4
     is_true "$ipv6" && create_ipset_privaddr -6
 
-    for domain in "$@"; do
-        _add_delete_domain $action $domain "$dnsmasq_ignore_file" "$file_ignlist_ext"
-    done
+    if [ -z "$@" ]; then
+        while read domain; do
+            _add_delete_domain $action $domain "$dnsmasq_ignore_file" "$file_ignlist_ext"
+        done
+    else
+        for domain in "$@"; do
+            _add_delete_domain $action $domain "$dnsmasq_ignore_file" "$file_ignlist_ext"
+        done
+    fi
 
 	reload_dnsserver
 }
@@ -1689,7 +1752,6 @@ do_set_mode() {
 start_dnsserver() {
     check_dnsmasq_env
     restore_resolvconf
-    resolve_svraddr
     trigger_proxy_startcmd
     start_dnsmasq_daemon
     modify_resolvconf
@@ -1924,7 +1986,7 @@ do_status() {
         }
         is_ss   && {
         process_is_running $status_ss_pid && \
-        \printf "%-${max}s%s %s\n" "ss /tcp:" $(color_green '[running]') "($(print_proxy_status))"
+        \printf "%-${max}s%s %s\n" "ss /tcp:" $(color_green '[running]') "($(print_proxy_status))" || \
         \printf "%-${max}s%s\n" "ss /tcp:" $(color_red '[stopped]')
         }
     fi
@@ -2064,7 +2126,6 @@ EOF
 
 main() {
     local arguments=()
-    optentries=()
 
     local arglist=("$@")
     local help_flag=false ver_flag=false
@@ -2086,7 +2147,7 @@ main() {
             \echo $(color_yellow "unknown option: ") $(color_red "$arg")
             do_help
         elif \grep -qF '=' <<<"$arg"; then
-            optentries+=("$arg")
+            __optentries+=("$arg")
         else
             arguments+=("$arg")
         fi
@@ -2095,7 +2156,7 @@ main() {
     is_true $help_flag && do_help
     is_true $ver_flag && do_version
 
-    if [ "${#arguments[@]}" -eq 0 -a "${#optentries[@]}" -eq 0 ]; then
+    if [ "${#arguments[@]}" -eq 0 -a "${#__optentries[@]}" -eq 0 ]; then
         \echo "$(color_yellow "Missing necessary options")"
         do_help
     fi
