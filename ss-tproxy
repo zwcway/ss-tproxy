@@ -333,11 +333,12 @@ config_check_allow_override() {
 load_config() {
     file_is_exists "$ss_tproxy_config" || log_fault "file not found: $ss_tproxy_config"
 
+	local __base_dir="$base_dir"
     #save_config "$ss_tproxy_config" base_dir "'$base_dir'"
     \source "$ss_tproxy_config" "${arguments[@]}" || log_fault "load config failed, exit-code: $?"
 
     ## default value
-    base_dir=${base_dir:-${0%/*}}}
+    base_dir="${base_dir:-$__base_dir}"
     mode=${mode:-gfwlist}
     tproxy=${tproxy:-false}
     tcponly=${tcponly:-false}
