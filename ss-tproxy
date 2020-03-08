@@ -768,7 +768,7 @@ _convert_dnsmasq_domain() {
         is_true "$ipv6" && \echo "print \"server = /\"\$1\"/$dns_server6\";"
         \echo "print \"ipset = /\"\$1\"/$(\echo ${ipset_name[@]} | \sed 's/ /,/')\";"
     )"
-    \grep -ioE "$DOMAIN_PATTERN" "$from_file" | \awk "{${awk_script}}" >"$to_file"
+    \grep -ioE "$DOMAIN_PATTERN" "$from_file" | \awk "{${awk_script}}" >>"$to_file"
 
     if is_true "$ipv4"; then
         \grep -oE "$IPV4_NET_PATTERN" "$from_file" | \awk '{print "add '$ipset_prename' "$1}'  | \ipset -R -exist
@@ -784,6 +784,7 @@ $(is_true "$ipv4" && \echo "server = $dns_remote")
 $(is_true "$ipv6" && \echo "server = $dns_remote6")
 conf-file = $dnsmasq_ignore_file
 EOF
+	>"$dnsmasq_ignore_file"
     _convert_dnsmasq_domain "$file_ignlist_ext" "$dnsmasq_ignore_file" $dns_direct $dns_direct6 privaddr
 
     status_dnsmasq_pid=$("$bin_dnsmasq" --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
@@ -796,8 +797,8 @@ $(is_true "$ipv4" && \echo "server = $dns_direct")
 $(is_true "$ipv6" && \echo "server = $dns_direct6")
 conf-file = $dnsmasq_gfwlist_file
 EOF
-    \echo $(color_yellow "parsing gfwlist ...")
 
+    >"$dnsmasq_gfwlist_file"
     _convert_dnsmasq_domain "$file_gfwlist_txt" "$dnsmasq_gfwlist_file" $dns_remote $dns_remote6 gfwlist
     _convert_dnsmasq_domain "$file_gfwlist_ext" "$dnsmasq_gfwlist_file" $dns_remote $dns_remote6 gfwlist
 
@@ -847,6 +848,7 @@ server = 127.0.0.1#$chinadns_bind_port
 conf-file = ${dnsmasq_ignore_file}
 EOF
 
+    >"$dnsmasq_ignore_file"
     _convert_dnsmasq_domain "$file_ignlist_ext" "$dnsmasq_ignore_file" $dns_direct $dns_direct6 privaddr
 
     status_dnsmasq_pid=$("$bin_dnsmasq" --keep-in-foreground --conf-file=$dnsmasq_config_file & \echo $!)
