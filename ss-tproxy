@@ -2087,7 +2087,7 @@ do_flush() {
 }
 
 do_version() {
-    \echo "ss-tproxy v5.2"
+    \echo "ss-tproxy v5.2.1"
     exit
 }
 
