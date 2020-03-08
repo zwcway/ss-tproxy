@@ -416,7 +416,7 @@ load_config() {
     ipset_privaddr_name=${ipset_privaddr_name:-privaddr}
     ipset_gfwlist_name=${ipset_gfwlist_name:-gfwlist}
     ipset_chnroute_name=${ipset_chnroute_name:-chnroute}
-    ipset_timeout=${ipset_timeout:-0‬}
+    ipset_timeout=${ipset_timeout:-604800}
 
     file_gfwlist_txt="${file_gfwlist_txt:-$base_dir/gfwlist.txt}"
     file_gfwlist_ext="${file_gfwlist_ext:-$base_dir/gfwlist.ext}"
