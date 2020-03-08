@@ -5,7 +5,7 @@
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 
 readonly bin="${0##*/}"
-base_dir="/opt/etc/ssr"
+base_dir="${0%/*}"
 ss_tproxy_config="$base_dir/ss-tproxy.conf"
 
 declare -a __optentries=()
@@ -337,6 +337,7 @@ load_config() {
     \source "$ss_tproxy_config" "${arguments[@]}" || log_fault "load config failed, exit-code: $?"
 
     ## default value
+    base_dir=${base_dir:-${0%/*}}}
     mode=${mode:-gfwlist}
     tproxy=${tproxy:-false}
     tcponly=${tcponly:-false}
@@ -525,6 +526,8 @@ check_dnsmasq_env() {
 
 check_env() {
     \command -v 'which' &>/dev/null || log_fault "command not found: which"
+
+    [ -d "$base_dir" ] || log_fault "$base_dir not exists"
 
     for cmd in ls grep sed awk kill mv rm cat cut touch sort uniq ipset lsmod; do
         command_is_exists $cmd   || log_fault "command not found: $cmd"
@@ -2091,7 +2094,7 @@ do_flush() {
 }
 
 do_version() {
-    \echo "ss-tproxy v5.2"
+    \echo "ss-tproxy v5.2.3"
     exit
 }
 
