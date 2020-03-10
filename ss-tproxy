@@ -1177,6 +1177,11 @@ do_stop_iptables() {
     delete_iptables_mangle -6
     delete_iptables_nat -4
     delete_iptables_nat -6
+
+    resolve_svraddr
+    for addr in ${__proxy_svripv4[@]}; do iptables -4 -t nat -D OUTPUT -d $addr &>/dev/null; done
+    for addr in ${__proxy_svripv6[@]}; do iptables -6 -t nat -D OUTPUT -d $addr &>/dev/null; done
+
 }
 
 _delete_unused_iptchains() {
@@ -1257,6 +1262,7 @@ start_iptables_tproxy_mode() {
     for svr_ip in "${svr_ip_array[@]}"; do
         iptables $1 -t mangle -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
         is_enabled_udp && iptables $1 -t mangle -A SSTP_RULE -p udp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
+        iptables $1 -t nat -A OUTPUT -d $svr_ip
     done
 
     if is_enabled_udp; then
@@ -1338,6 +1344,7 @@ start_iptables_redirect_mode() {
 
     for svr_ip in "${svr_ip_array[@]}"; do
         iptables $1 -t nat -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
+        iptables $1 -t nat -A OUTPUT -d $svr_ip
     done
 
     if ! is_enabled_udp; then
