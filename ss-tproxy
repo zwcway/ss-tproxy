@@ -102,6 +102,7 @@ load_config() {
     proxy_local=${proxy_local:-false}
     proxy_tcpport=${proxy_tcpport:-60080}
     proxy_udpport=${proxy_udpport:-60080}
+    proxy_blance=${proxy_blance:-false}
 
     is_variable_defined proxy_srvaddr4 || proxy_srvaddr4=()
     is_variable_array proxy_srvaddr4 || proxy_srvaddr4=("$proxy_srvaddr4")
@@ -1103,6 +1104,12 @@ delete_iptables_nat() {
     iptables $1 -t nat -X SSTP_RULE        &>/dev/null
 }
 
+delete_iptables_filter() {
+    iptables $1 -t filter -D OUTPUT -j SSTP_STATISTIC &>/dev/null
+    iptables $1 -t filter -F SSTP_STATISTIC           &>/dev/null
+    iptables $1 -t filter -X SSTP_STATISTIC           &>/dev/null
+}
+
 _show_iptables() {
     \echo "$(color_green "==> iptables-mangle <==")"
     iptables $1 -t mangle -nvL --line-numbers | \sed -n '{
@@ -1177,11 +1184,8 @@ do_stop_iptables() {
     delete_iptables_mangle -6
     delete_iptables_nat -4
     delete_iptables_nat -6
-
-    resolve_svraddr
-    for addr in ${__proxy_svripv4[@]}; do iptables -4 -t nat -D OUTPUT -d $addr &>/dev/null; done
-    for addr in ${__proxy_svripv6[@]}; do iptables -6 -t nat -D OUTPUT -d $addr &>/dev/null; done
-
+    delete_iptables_filter -4
+    delete_iptables_filter -6
 }
 
 _delete_unused_iptchains() {
@@ -1218,6 +1222,7 @@ start_iptables_pre_rules() {
     iptables $1 -t nat    -N SSTP_PREROUTING
     iptables $1 -t nat    -N SSTP_OUTPUT
     iptables $1 -t nat    -N SSTP_POSTROUTING
+    iptables $1 -t filter -N SSTP_STATISTIC
 
     if is_need_iproute; then
         local iproute2_family="$1"
@@ -1232,6 +1237,7 @@ start_iptables_post_rules() {
     iptables $1 -t nat    -A PREROUTING  -j SSTP_PREROUTING
     iptables $1 -t nat    -A OUTPUT      -j SSTP_OUTPUT
     iptables $1 -t nat    -A POSTROUTING -j SSTP_POSTROUTING
+    iptables $1 -t filter -A OUTPUT      -j SSTP_STATISTIC
 }
 
 start_iptables_tproxy_mode() {
@@ -1251,6 +1257,10 @@ start_iptables_tproxy_mode() {
     local gfwlist_setname=$(setname_gfwlist $1)
     local chnroute_setname=$(setname_chnroute $1)
     local privaddr_setname=$(setname_privaddr $1)
+    local prob=1 rule=
+    local size=${#svr_ip_array[@]}
+    is_true "$proxy_blance" || size=1
+
 
     ######################### SSTP_RULE (tcp and udp) #########################
 
@@ -1262,7 +1272,7 @@ start_iptables_tproxy_mode() {
     for svr_ip in "${svr_ip_array[@]}"; do
         iptables $1 -t mangle -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
         is_enabled_udp && iptables $1 -t mangle -A SSTP_RULE -p udp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
-        iptables $1 -t nat -A OUTPUT -d $svr_ip
+        iptables $1 -A SSTP_STATISTIC -d $svr_ip
     done
 
     if is_enabled_udp; then
@@ -1311,8 +1321,19 @@ start_iptables_tproxy_mode() {
         is_enabled_udp && iptables $1 -t mangle -A SSTP_PREROUTING -m addrtype ! --src-type LOCAL ! --dst-type LOCAL -p udp -j SSTP_RULE
     fi
 
-    iptables $1 -t mangle -A SSTP_PREROUTING -p tcp -m mark --mark $ipts_rt_mark -j TPROXY --on-ip $loopback_addr --on-port $proxy_tcpport
-    is_enabled_udp && iptables $1 -t mangle -A SSTP_PREROUTING -p udp -m mark --mark $ipts_rt_mark -j TPROXY --on-ip $loopback_addr --on-port $proxy_udpport
+    for (( i=$size ; i>=1; i--)); do
+        let prob=1/i
+        [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+        iptables $1 -t mangle -A SSTP_PREROUTING -p tcp -m mark --mark $ipts_rt_mark $rule -j TPROXY --on-ip $loopback_addr --on-port $proxy_tcpport
+    done
+
+    if is_enabled_udp; then
+        for (( i=$size ; i>=1; i--)); do
+            let prob=1/i
+            [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+            iptables $1 -t mangle -A SSTP_PREROUTING -p udp -m mark --mark $ipts_rt_mark $rule -j TPROXY --on-ip $loopback_addr --on-port $proxy_udpport
+        done
+    fi
 
     create_snatrule $1
 }
@@ -1337,6 +1358,9 @@ start_iptables_redirect_mode() {
     local gfwlist_setname=$(setname_gfwlist $1)
     local chnroute_setname=$(setname_chnroute $1)
     local privaddr_setname=$(setname_privaddr $1)
+    local prob=1 rule=
+    local size=${#svr_ip_array[@]}
+    is_true "$proxy_blance" || size=1
 
     ######################### SSTP_RULE (for tcp) #########################
 
@@ -1344,22 +1368,38 @@ start_iptables_redirect_mode() {
 
     for svr_ip in "${svr_ip_array[@]}"; do
         iptables $1 -t nat -A SSTP_RULE -p tcp -d $svr_ip -m multiport --dports $proxy_srvport -j RETURN
-        iptables $1 -t nat -A OUTPUT -d $svr_ip
+        iptables $1 -A SSTP_STATISTIC -d $svr_ip
     done
 
     if ! is_enabled_udp; then
-        iptables $1 -t nat -A SSTP_RULE -p tcp -d $remote_dns_ip --dport $remote_dns_port --syn -j REDIRECT --to-ports $proxy_tcpport
+        for (( i=$size ; i>=1; i--)); do
+            let prob=1/i
+            [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+            iptables $1 -t nat -A SSTP_RULE -p tcp -d $remote_dns_ip --dport $remote_dns_port --syn $rule -j REDIRECT --to-ports $proxy_tcpport
+        done
     fi
 
     if is_gfwlist_mode; then
-        iptables $1 -t nat -A SSTP_RULE -p tcp -m set --match-set $gfwlist_setname dst -m multiport --dports $ipts_proxy_dst_port --syn -j REDIRECT --to-ports $proxy_tcpport
+        for (( i=$size ; i>=1; i--)); do
+            let prob=1/i
+            [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+            iptables $1 -t nat -A SSTP_RULE -p tcp -m set --match-set $gfwlist_setname dst -m multiport --dports $ipts_proxy_dst_port --syn $rule -j REDIRECT --to-ports $proxy_tcpport
+        done
     elif is_global_mode; then
         iptables $1 -t nat -A SSTP_RULE -m set --match-set $privaddr_setname dst -j RETURN
-        iptables $1 -t nat -A SSTP_RULE -p tcp -m multiport --dports $ipts_proxy_dst_port --syn -j REDIRECT --to-ports $proxy_tcpport
+        for (( i=$size ; i>=1; i--)); do
+            let prob=1/i
+            [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+            iptables $1 -t nat -A SSTP_RULE -p tcp -m multiport --dports $ipts_proxy_dst_port --syn $rule -j REDIRECT --to-ports $proxy_tcpport
+        done
     elif is_chnroute_mode; then
         iptables $1 -t nat -A SSTP_RULE -m set --match-set $privaddr_setname dst -j RETURN
         iptables $1 -t nat -A SSTP_RULE -m set --match-set $chnroute_setname dst -j RETURN
-        iptables $1 -t nat -A SSTP_RULE -p tcp -m multiport --dports $ipts_proxy_dst_port --syn -j REDIRECT --to-ports $proxy_tcpport
+        for (( i=$size ; i>=1; i--)); do
+            let prob=1/i
+            [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+            iptables $1 -t nat -A SSTP_RULE -p tcp -m multiport --dports $ipts_proxy_dst_port --syn $rule -j REDIRECT --to-ports $proxy_tcpport
+        done
     fi
 
     ######################### SSTP_RULE (for udp) #########################
@@ -1413,7 +1453,13 @@ start_iptables_redirect_mode() {
         is_enabled_udp && iptables $1 -t mangle -A SSTP_PREROUTING -m addrtype ! --src-type LOCAL ! --dst-type LOCAL -p udp -j SSTP_RULE
     fi
 
-    is_enabled_udp && iptables $1 -t mangle -A SSTP_PREROUTING -p udp -m mark --mark $ipts_rt_mark -j TPROXY --on-ip $loopback_addr --on-port $proxy_udpport
+    if is_enabled_udp; then
+        for (( i=$size ; i>=1; i--)); do
+            let prob=1/i
+            [ "$prob" -lt "1" ] && rule ="-m statistic --mode random --probability $(\printf '%.2f' $prob)" || rule=''
+            iptables $1 -t mangle -A SSTP_PREROUTING -p udp -m mark --mark $ipts_rt_mark $rule -j TPROXY --on-ip $loopback_addr --on-port $proxy_udpport
+        done
+     fi
 
     create_snatrule $1
 }
@@ -2324,14 +2370,14 @@ do_statistic() {
     local ip_nums=
 
     if is_true "$ipv4"; then
-        ip_nums=$(iptables -4 -nL OUTPUT --line-number | \awk '/^[0-9]/{print $1,$5}')
+        ip_nums=$(iptables -4 -nL SSTP_STATISTIC --line-number | \awk '/^[0-9]/{print $1,$5}')
         for srv_addr in ${proxy_srvaddr4[@]}; do
             ip4_ln+=("$(\grep -F "$srv_addr" <<<"$ip_nums" | \cut -d' ' -f1)");
             ip4_lst+=("$srv_addr")
         done
     fi
     if is_true "$ipv6"; then
-        ip_nums=$(iptables -6 -nL OUTPUT --line-number | \awk '/^[0-9]/{print $1,$5}')
+        ip_nums=$(iptables -6 -nL SSTP_STATISTIC --line-number | \awk '/^[0-9]/{print $1,$5}')
         for srv_addr in ${proxy_srvaddr6[@]}; do
             ip6_ln+=("$(\grep -iF "$srv_addr" <<<"$ip_nums" | \cut -d' ' -f1)");
             ip6_lst+=("$srv_addr")
@@ -2359,11 +2405,11 @@ END {
         printf "%20s:%6.1f%4s\r", ip, t, m;
     }
 }' <<<"$({
-        for line in ${ip4_ln[@]}; do iptables -4 -xnvL OUTPUT $line; done;
-        for line in ${ip6_ln[@]}; do iptables -6 -xnvL OUTPUT $line; done;
+        for line in ${ip4_ln[@]}; do iptables -4 -xnvL SSTP_STATISTIC $line; done;
+        for line in ${ip6_ln[@]}; do iptables -6 -xnvL SSTP_STATISTIC $line; done;
         sleep 1
-        for line in ${ip4_ln[@]}; do iptables -4 -xnvL OUTPUT $line; done;
-        for line in ${ip6_ln[@]}; do iptables -6 -xnvL OUTPUT $line; done;
+        for line in ${ip4_ln[@]}; do iptables -4 -xnvL SSTP_STATISTIC $line; done;
+        for line in ${ip6_ln[@]}; do iptables -6 -xnvL SSTP_STATISTIC $line; done;
         })"
     done
 }
