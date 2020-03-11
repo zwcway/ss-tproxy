@@ -102,7 +102,7 @@ load_config() {
     proxy_local=${proxy_local:-false}
     proxy_tcpport=${proxy_tcpport:-60080}
     proxy_udpport=${proxy_udpport:-60080}
-    proxy_blance=${proxy_blance:-false}
+    proxy_balance=${proxy_balance:-false}
 
     is_variable_defined proxy_srvaddr4 || proxy_srvaddr4=()
     is_variable_array proxy_srvaddr4 || proxy_srvaddr4=("$proxy_srvaddr4")
@@ -496,6 +496,11 @@ check_iptable_env() {
         is_true "$ipv4" && { chk_iptables_mod -4 ${match} || log_fault "iptables match not found. try 'modprobe xt_${match}.ko'"; }
         is_true "$ipv6" && { chk_iptables_mod -6 ${match} || log_fault "ip6tables match not found. try 'modprobe xt_${match}.ko'"; }
     done
+
+    if is_true "$proxy_balance"; then
+        is_true "$ipv4" && chk_iptables_mod -4 statistic || log_fault "iptables match not found. try 'modprobe xt_statistic.ko'"
+        is_true "$ipv6" && chk_iptables_mod -6 statistic || log_fault "ip6tables match not found. try 'modprobe xt_statistic.ko'"
+    fi
 
     # check kernel modules exists
     local require_mods=(
@@ -1259,7 +1264,7 @@ start_iptables_tproxy_mode() {
     local privaddr_setname=$(setname_privaddr $1)
     local prob=1 rule=
     local size=${#svr_ip_array[@]}
-    is_true "$proxy_blance" || size=1
+    is_true "$proxy_balance" || size=1
 
 
     ######################### SSTP_RULE (tcp and udp) #########################
@@ -1360,7 +1365,7 @@ start_iptables_redirect_mode() {
     local privaddr_setname=$(setname_privaddr $1)
     local prob=1 rule=
     local size=${#svr_ip_array[@]}
-    is_true "$proxy_blance" || size=1
+    is_true "$proxy_balance" || size=1
 
     ######################### SSTP_RULE (for tcp) #########################
 
