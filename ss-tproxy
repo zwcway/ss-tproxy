@@ -4,9 +4,9 @@
 
 PATH=$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin
 
-readonly bin="${0##*/}"
 base_dir="${0%/*}"
 ss_tproxy_config="$base_dir/ss-tproxy.conf"
+readonly bin="${0##*/}"
 
 declare -a __optentries=()
 declare -a __proxy_svripv4=()
@@ -2368,8 +2368,70 @@ END {
     done
 }
 
+do_install() {
+    local arglist=("${@}") arg=
+    local install_dir= install_bin= install_config_dir= install_config_file=
+    local help_flag=false install_force=false
+    for ((i = 0; i < ${#arglist[@]}; ++i)); do
+        arg="${arglist[i]}"
+        case "$arg" in
+            --dir)              install_dir="${arglist[++i]}";;
+            --bin)              install_bin="${arglist[++i]}";;
+            -d|--conf-dir)      install_config_dir="${arglist[++i]}";;
+            -c|--conf-file)     install_config_file="${arglist[++i]}";;
+            -f|--force)         install_force=true;;
+            -h|--help)          help_flag=true;;
+            *)                  log_fault "unknown option $arg";;
+        esac
+    done
+    if is_true $help_flag; then
+        \echo "Usage: $bin install" $(color_white "[OPTION]")
+        \echo
+        \echo "[OPTION]:"
+        \echo "  -d|--conf-dir          where is config file in"
+        \echo "  -c|--conf-file         config file name"
+        exit
+    fi
+
+    install_dir="${install_dir:-/usr/bin}"
+    install_bin="${install_bin:-$bin}"
+    install_config_dir="${install_config_dir:-/etc/ss-tproxy}"
+    install_config_file="${install_config_file:-ss-tproxy.conf}"
+
+    if is_false $install_force; then
+        { command_is_exists "$bin" || [ -x "$install_dir/$install_bin" ] ;} && \echo "$bin is installed." && exit
+        [ -f "$install_dir/$install_bin" ] && log_fault "file $install_dir/$install_bin is exists"
+    fi
+
+    [ -d "$install_config_dir" ] || \mkdir -p "$install_config_dir"
+    [ -d "$install_dir" ] || \mkdir -p "$install_dir"
+
+    [ "$install_config_dir" = "$base_dir" ] && log_fault "same folder"
+    [ "$install_dir" = "$base_dir" ] && log_fault "same folder"
+
+    if file_is_exists "$ss_tproxy_config"; then
+        \cp -f "$ss_tproxy_config" "$install_config_dir/$install_config_file"
+        \cp -ft "$install_config_dir/" \
+            "$file_gfwlist_txt" \
+            "$file_gfwlist_ext" \
+            "$file_ignlist_ext" \
+            "$file_chnroute6_set" \
+            "$file_chnroute_set" \
+            "$file_dnsserver_pid" &>/dev/null
+    else
+        \touch "$install_config_dir/$install_config_file"
+    fi
+
+    \sed -e "s#^base_dir=.*#base_dir='$install_config_dir'#" \
+        -e "s#^ss_tproxy_config=.*#ss_tproxy_config=\"\$base_dir/$install_config_file\"#" \
+        "$base_dir/$bin" >"$install_dir/$install_bin" && \
+     \chmod +x "$install_dir/$install_bin"
+
+     \echo $(color_green "install success")
+}
+
 do_version() {
-    \echo "ss-tproxy v5.3.1"
+    \echo "ss-tproxy v5.3.3"
     exit
 }
 
@@ -2377,6 +2439,7 @@ do_help() {
     \cat <<EOF
 Usage: $bin <COMMAND> [-x] [-c cfgfile] [name=value...]
 COMMAND := {
+$(command_is_exists "$bin" || \echo "    install             install $bin")
     start               start ss-tproxy
     stop                stop ss-tproxy
     restart             restart ss-tproxy
@@ -2454,6 +2517,7 @@ main() {
         f|flush)                        do_flush;;
         r|reload)                       do_reload "${arguments[@]:1}";;
         u|update)                       do_update "${arguments[@]:1}";;
+        install)                        do_install "${arguments[@]:1}";;
 
         proxy)                          do_proxy "${arguments[@]:1}";;
         statistic)                      do_statistic;;
