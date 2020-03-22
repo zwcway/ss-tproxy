@@ -10,16 +10,16 @@
 ## 更新历史
 
 **v5.3.1 stable**
-- 增加 `gfwlist`/`ignlist` 域名或ip检测，并支持管道
-- 增加实时速度显示
+- 增加 `gfwlist`/`ignlist` 域名或ip检测，并支持管道，命令是 `ss-tproxy domain test`
+- 增加实时速度显示，命令是 `ss-tproxy statistic`
 - 修复其他问题
 
 **v5.2.1 stable**
-- 修复 iptables 错误规则
+- 修复 `iptables` 依赖的校验规则
 - 修复其他问题
 
 **v5.2**
-- 优化 gfwlist 导入性能
+- 优化 `gfwlist` 导入性能
 - 优化服务依赖关系
 - 支持自定义 `iptables`/`ip2tables`/`dnsmasq`/`chinadns-ng`/`dns2tcp` 等可执行文件的路径
 
