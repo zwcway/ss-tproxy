@@ -717,7 +717,8 @@ resolve_svraddr() {
     fi
 }
 
-do_update_chnlist() {
+
+_chnlist() {
     local chnlist_file="$1"
 
     { [ -n "$chnlist_file" ] && file_is_exists "$chnlist_file"; } || log_fault "chnlist file not exists"
@@ -2499,12 +2500,12 @@ $(command_is_exists "$bin" || \echo "    install             install $bin")
     show                show rules
     flush               delete rules
 
-    update              update domain list
-    parse               config proxy from URI
+    update              update domain list from github
+    domain              add/delete domains
+
+    statistic           something statistics
 
     set-mode            change run mode manual
-
-    domain              add/delete domains
 
     version             show version and exit
     help                show help and exit
