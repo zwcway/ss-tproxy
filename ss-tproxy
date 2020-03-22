@@ -2374,6 +2374,7 @@ do_statistic() {
     local ip_ln=() ip6_ln=()
     local ip_lst=() ip6_lst=()
     local ip_nums=
+    local total_count=
 
     chk_iptables_is_started || log_fault "iptables rules empty"
 
@@ -2391,7 +2392,6 @@ do_statistic() {
             ip6_lst+=("$srv_addr")
         done
     fi
-    local total_count=
     let total_count=${#ip4_ln[@]}+${#ip6_ln[@]}
 
     [ "$total_count" = '0' ] && log_fault "srv_addr is empty"
@@ -2403,26 +2403,9 @@ do_statistic() {
         for line in ${ip4_ln[@]}; do iptables -4 -xnvL SSTP_STATISTIC $line; done;
         for line in ${ip6_ln[@]}; do iptables -6 -xnvL SSTP_STATISTIC $line; done;
     done | awk '
-{
-    row=NR % ('$total_count' * 2);
-    if (row > 0 && row <= '$total_count') {
-        a[$8]=$2;
-    } else {
-        b[$8]=$2;
-    }
-    if (row == 0) {
-        for (ip in a) {
-            m="B/s";
-            t=b[ip] - a[ip];
-            if (t>1024) { t=t/1024; m="KB/s";}
-            if (t>1024) { t=t/1024; m="MB/s";}
-            if (t>1024) { t=t/1024; m="GB/s";}
-            printf "%20s:%6.1f%4s\r", ip, t, m;
-        }
-        delete a;
-        delete b;
-    }
-}'
+function unit(size){m="B";if(size>1024){size=size/1024;m="KB";}if(size>1024){size=size/1024;m="MB";}if(size>1024){size=size/1024;m="GB";}str=sprintf("%6.1f%s",size,m);sub(".0","",str);return str;}
+{row=NR%('$total_count'*2);if(row>0&&row<='$total_count'){a[$8]=$2;}else{b[$8]=$2;}if(row==0){for(ip in a){t=b[ip]-a[ip];printf "%20s:%10s/s%9s\r",ip,unit(t),unit(b[ip]);}delete a;delete b;}}
+'
 }
 
 do_install() {
