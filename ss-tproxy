@@ -504,26 +504,26 @@ check_iptable_env() {
 
     # check kernel modules exists
     local require_mods=(
-        'iptable_nat'
-        'iptable_mangle'
-        'iptable_raw'
+#        'iptable_nat'
+#        'iptable_mangle'
+#        'iptable_raw'
 
-        'xt_nat'
-        'xt_multiport'
-        'xt_tcpudp'
-        'ipt_MASQUERADE'
+#        'xt_nat'
+#        'xt_multiport'
+#        'xt_tcpudp'
+#        'ipt_MASQUERADE'
 
-        "nfnetlink"
+#        "nfnetlink"
         "ip_set"
         "ip_set_hash_net"
         "xt_set"
 
-        'nf_tproxy_core'
-        'xt_TPROXY'
-        'xt_mark'
-        'xt_connmark'
-        'xt_addrtype'
-        'xt_conntrack'
+#        'nf_tproxy_core'
+#        'xt_TPROXY'
+#        'xt_mark'
+#        'xt_connmark'
+#        'xt_addrtype'
+#        'xt_conntrack'
     )
     for mod in ${require_mods[@]}; do
         chk_kernel_mod ${mod}  || log_fault "kernel module not found. try 'modprobe xt_${mod}.ko'";
@@ -1186,6 +1186,7 @@ create_postrule() {
 }
 
 do_stop_iptables() {
+    check_iptable_env
     delete_iptables_mangle -4
     delete_iptables_mangle -6
     delete_iptables_nat -4
@@ -2156,10 +2157,8 @@ do_stop() {
             }
         ;;
         i|ipt|iptables)
-            chk_iptables_is_started && {
-                delete_iproute2
-                do_stop_iptables
-            }
+            delete_iproute2
+            do_stop_iptables
         ;;
         ipset)
             { chk_proxyserver_is_started || chk_iptables_is_started; } && log_fault "ipset is used, stop failed"
